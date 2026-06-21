@@ -10,20 +10,26 @@ from typing import Any
 class StepResult:
     """Result of executing a single test step."""
 
-    step_name: str
-    passed: bool
-    request_data: bytes
-    response_data: bytes
+    step_id: str
+    verdict: str
+    request_bytes: bytes
+    response_bytes: bytes
+    parsed: dict[str, Any] | None = None
+    timestamp: str | None = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    duration_ms: float | None = None
     nrc: int | None = None
     error_message: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
-            "step_name": self.step_name,
-            "passed": self.passed,
-            "request_data": self.request_data.hex(),
-            "response_data": self.response_data.hex(),
+            "step_id": self.step_id,
+            "verdict": self.verdict,
+            "request_bytes": self.request_bytes.hex(),
+            "response_bytes": self.response_bytes.hex(),
+            "parsed": self.parsed,
+            "timestamp": self.timestamp,
+            "duration_ms": self.duration_ms,
             "nrc": self.nrc,
             "error_message": self.error_message,
         }
@@ -32,10 +38,13 @@ class StepResult:
     def from_dict(cls, data: dict[str, Any]) -> StepResult:
         """Create from dictionary."""
         return cls(
-            step_name=data["step_name"],
-            passed=data["passed"],
-            request_data=bytes.fromhex(data["request_data"]),
-            response_data=bytes.fromhex(data["response_data"]),
+            step_id=data["step_id"],
+            verdict=data["verdict"],
+            request_bytes=bytes.fromhex(data["request_bytes"]),
+            response_bytes=bytes.fromhex(data["response_bytes"]),
+            parsed=data.get("parsed"),
+            timestamp=data.get("timestamp"),
+            duration_ms=data.get("duration_ms"),
             nrc=data.get("nrc"),
             error_message=data.get("error_message"),
         )
@@ -46,34 +55,45 @@ class SessionRecord:
     """Record of a diagnostic session execution."""
 
     session_id: str
-    transport_type: str = "doip"
+    transport: str = "doip"
+    profile: str | None = None
+    state: str = "running"
     results: list[StepResult] = field(default_factory=list)
-    start_time: str | None = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    end_time: str | None = None
+    frames: list[dict[str, Any]] = field(default_factory=list)
+    started_at: str | None = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    ended_at: str | None = None
 
     @property
     def passed(self) -> bool:
         """Check if all steps passed."""
         if not self.results:
             return False
-        return all(r.passed for r in self.results)
+        return all(r.verdict == "pass" for r in self.results)
 
-    def add_result(self, result: StepResult) -> None:
+    def add_step_result(self, result: StepResult) -> None:
         """Add a step result to the session."""
         self.results.append(result)
 
+    def add_frame(self, frame: dict[str, Any]) -> None:
+        """Add a protocol frame to the session."""
+        self.frames.append(frame)
+
     def finalize(self) -> None:
         """Mark the session as complete."""
-        self.end_time = datetime.now(timezone.utc).isoformat()
+        self.ended_at = datetime.now(timezone.utc).isoformat()
+        self.state = "completed"
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "session_id": self.session_id,
-            "transport_type": self.transport_type,
-            "start_time": self.start_time,
-            "end_time": self.end_time,
+            "transport": self.transport,
+            "profile": self.profile,
+            "state": self.state,
+            "started_at": self.started_at,
+            "ended_at": self.ended_at,
             "results": [r.to_dict() for r in self.results],
+            "frames": self.frames,
         }
 
     @classmethod
@@ -81,8 +101,11 @@ class SessionRecord:
         """Create from dictionary."""
         return cls(
             session_id=data["session_id"],
-            transport_type=data.get("transport_type", "doip"),
-            start_time=data.get("start_time"),
-            end_time=data.get("end_time"),
+            transport=data.get("transport", "doip"),
+            profile=data.get("profile"),
+            state=data.get("state", "running"),
+            started_at=data.get("started_at"),
+            ended_at=data.get("ended_at"),
             results=[StepResult.from_dict(r) for r in data.get("results", [])],
+            frames=data.get("frames", []),
         )
