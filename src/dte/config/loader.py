@@ -28,8 +28,8 @@ def load_config(path: Path) -> dict[str, TransportProfile]:
           eol_test:
             transport_type: doip
             doip:
-              host: 192.168.1.100
-              port: 13401
+              target_ip: 192.168.1.100
+              tcp_port: 13401
         ```
 
     Args:
