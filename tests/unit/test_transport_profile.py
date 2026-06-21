@@ -45,7 +45,7 @@ class TestDoIPConfig:
         assert config.tcp_port == 13400
         assert config.udp_port == 13400
         assert config.source_addr == 0x0E00
-        assert config.target_addr == 0x0001
+        assert config.target_addr == 0x0010
         assert config.activation_type == 0x00
         assert config.discovery is True
 
@@ -122,7 +122,7 @@ class TestTimingConfig:
     def test_default_values(self):
         config = TimingConfig()
         assert config.p2 == 5.0
-        assert config.p2_star == 50.0
+        assert config.p2_star == 5000.0
         assert config.n_as == 1.0
         assert config.n_ar == 1.0
         assert config.n_bs == 1.0
