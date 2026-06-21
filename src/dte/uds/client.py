@@ -52,6 +52,7 @@ class TransportConnection(BaseConnection):
         super().__init__(name=name or "TransportConnection")
         self._transport = transport
         self._open = False
+        self._pending_request: Optional[bytes] = None
 
     def open(self) -> BaseConnection:
         """Open the underlying transport connection."""
