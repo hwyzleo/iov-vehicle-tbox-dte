@@ -55,7 +55,7 @@ class Report:
         passed = 0
         failed = 0
         for record in self.session_records:
-            for r in record.results:
+            for r in record.step_results:
                 total += 1
                 if r.verdict == "pass":
                     passed += 1

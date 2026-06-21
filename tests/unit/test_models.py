@@ -14,6 +14,7 @@ class TestStepRequest:
         req = StepRequest(service=0x10, data=b"\x01")
         assert req.service == 0x10
         assert req.data == b"\x01"
+        assert req.did is None
         assert req.routine_id is None
         assert req.control_type is None
         assert req.sub_function is None
@@ -24,6 +25,7 @@ class TestStepRequest:
         )
         assert req.service == 0x22
         assert req.data == b"\xF1\x90"
+        assert req.did is None
         assert req.routine_id == 0x1234
         assert req.control_type == 0x01
         assert req.sub_function == 0x01
@@ -33,6 +35,7 @@ class TestStepRequest:
         result = req.to_dict()
         assert result["service"] == 0x22
         assert result["data"] == "f190"
+        assert result["did"] is None
         assert result["routine_id"] == 0x1234
         assert result["control_type"] is None
         assert result["sub_function"] is None
@@ -57,6 +60,7 @@ class TestStepExpect:
 
     def test_default_values(self):
         expect = StepExpect()
+        assert expect.sid is None
         assert expect.success is True
         assert expect.nrc is None
         assert expect.did_data_match is None
@@ -74,6 +78,7 @@ class TestStepExpect:
     def test_to_dict(self):
         expect = StepExpect(success=True, did_data_match=True)
         result = expect.to_dict()
+        assert result["sid"] is None
         assert result["success"] is True
         assert result["nrc"] is None
         assert result["did_data_match"] is True
@@ -312,7 +317,7 @@ class TestSessionRecord:
         assert session.transport == "doip"
         assert session.profile is None
         assert session.state == "running"
-        assert session.results == []
+        assert session.step_results == []
         assert session.frames == []
         assert session.started_at is not None
         assert session.ended_at is None
@@ -326,8 +331,8 @@ class TestSessionRecord:
             response_bytes=b"\x50\x01",
         )
         session.add_step_result(result)
-        assert len(session.results) == 1
-        assert session.results[0] == result
+        assert len(session.step_results) == 1
+        assert session.step_results[0] == result
 
     def test_add_frame(self):
         session = SessionRecord(session_id="sess-001")
@@ -380,7 +385,7 @@ class TestSessionRecord:
         assert d["transport"] == "can"
         assert d["profile"] == "can_profile"
         assert d["state"] == "running"
-        assert len(d["results"]) == 1
+        assert len(d["step_results"]) == 1
         assert d["frames"] == []
 
     def test_from_dict(self):
@@ -391,7 +396,7 @@ class TestSessionRecord:
             "state": "completed",
             "started_at": "2026-06-21T10:00:00",
             "ended_at": "2026-06-21T10:00:01",
-            "results": [
+            "step_results": [
                 {
                     "step_id": "step_01",
                     "verdict": "pass",
@@ -406,7 +411,7 @@ class TestSessionRecord:
         assert session.transport == "doip"
         assert session.profile == "doip_profile"
         assert session.state == "completed"
-        assert len(session.results) == 1
+        assert len(session.step_results) == 1
         assert len(session.frames) == 1
 
 
@@ -518,7 +523,7 @@ class TestReport:
                     "state": "completed",
                     "started_at": "2026-06-21T10:00:00",
                     "ended_at": "2026-06-21T10:00:01",
-                    "results": [
+                    "step_results": [
                         {
                             "step_id": "step_01",
                             "verdict": "pass",

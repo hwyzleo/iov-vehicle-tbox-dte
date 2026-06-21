@@ -58,7 +58,7 @@ class SessionRecord:
     transport: str = "doip"
     profile: str | None = None
     state: str = "running"
-    results: list[StepResult] = field(default_factory=list)
+    step_results: list[StepResult] = field(default_factory=list)
     frames: list[dict[str, Any]] = field(default_factory=list)
     started_at: str | None = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     ended_at: str | None = None
@@ -66,13 +66,13 @@ class SessionRecord:
     @property
     def passed(self) -> bool:
         """Check if all steps passed."""
-        if not self.results:
+        if not self.step_results:
             return False
-        return all(r.verdict == "pass" for r in self.results)
+        return all(r.verdict == "pass" for r in self.step_results)
 
     def add_step_result(self, result: StepResult) -> None:
         """Add a step result to the session."""
-        self.results.append(result)
+        self.step_results.append(result)
 
     def add_frame(self, frame: dict[str, Any]) -> None:
         """Add a protocol frame to the session."""
@@ -92,7 +92,7 @@ class SessionRecord:
             "state": self.state,
             "started_at": self.started_at,
             "ended_at": self.ended_at,
-            "results": [r.to_dict() for r in self.results],
+            "step_results": [r.to_dict() for r in self.step_results],
             "frames": self.frames,
         }
 
@@ -106,6 +106,6 @@ class SessionRecord:
             state=data.get("state", "running"),
             started_at=data.get("started_at"),
             ended_at=data.get("ended_at"),
-            results=[StepResult.from_dict(r) for r in data.get("results", [])],
+            step_results=[StepResult.from_dict(r) for r in data.get("step_results", [])],
             frames=data.get("frames", []),
         )

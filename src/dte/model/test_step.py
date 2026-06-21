@@ -10,7 +10,8 @@ class StepRequest:
     """UDS request for a test step."""
 
     service: int
-    data: bytes
+    did: int | None = None
+    data: bytes = b""
     routine_id: int | None = None
     control_type: int | None = None
     sub_function: int | None = None
@@ -19,6 +20,7 @@ class StepRequest:
         """Convert to dictionary."""
         return {
             "service": self.service,
+            "did": self.did,
             "data": self.data.hex(),
             "routine_id": self.routine_id,
             "control_type": self.control_type,
@@ -30,6 +32,7 @@ class StepRequest:
         """Create from dictionary."""
         return cls(
             service=data["service"],
+            did=data.get("did"),
             data=bytes.fromhex(data["data"]),
             routine_id=data.get("routine_id"),
             control_type=data.get("control_type"),
@@ -41,6 +44,7 @@ class StepRequest:
 class StepExpect:
     """Expected response for a test step."""
 
+    sid: int | None = None
     success: bool = True
     nrc: int | None = None
     did_data_match: bool | None = None
@@ -48,6 +52,7 @@ class StepExpect:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
+            "sid": self.sid,
             "success": self.success,
             "nrc": self.nrc,
             "did_data_match": self.did_data_match,
@@ -57,6 +62,7 @@ class StepExpect:
     def from_dict(cls, data: dict[str, Any]) -> StepExpect:
         """Create from dictionary."""
         return cls(
+            sid=data.get("sid"),
             success=data.get("success", True),
             nrc=data.get("nrc"),
             did_data_match=data.get("did_data_match"),
