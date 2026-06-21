@@ -6,28 +6,29 @@ import pytest
 from dte.uds.security import (
     CallableAdapter,
     FixedKeyAdapter,
+    SecurityAccessAdapter,
     SecurityAccessError,
-    SecurityAdapter,
-    XorAdapter,
+    XORAdapter,
+    create_adapter,
 )
 
 
-class TestSecurityAdapterABC:
-    """Tests for the abstract SecurityAdapter base class."""
+class TestSecurityAccessAdapterABC:
+    """Tests for the abstract SecurityAccessAdapter base class."""
 
     def test_cannot_instantiate_directly(self):
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-            SecurityAdapter()
+            SecurityAccessAdapter()
 
     def test_subclass_must_implement_compute_key(self):
-        class IncompleteAdapter(SecurityAdapter):
+        class IncompleteAdapter(SecurityAccessAdapter):
             pass
 
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             IncompleteAdapter()
 
     def test_subclass_with_compute_key_works(self):
-        class CompleteAdapter(SecurityAdapter):
+        class CompleteAdapter(SecurityAccessAdapter):
             def compute_key(self, seed: bytes, level: int) -> bytes:
                 return seed
 
@@ -58,36 +59,36 @@ class TestFixedKeyAdapter:
         assert adapter.compute_key(b"\x01", 1) == b""
 
 
-class TestXorAdapter:
-    """Tests for XorAdapter."""
+class TestXORAdapter:
+    """Tests for XORAdapter."""
 
     def test_xor_single_byte(self):
-        adapter = XorAdapter(key=b"\xFF")
+        adapter = XORAdapter(key=b"\xFF")
         result = adapter.compute_key(b"\x0F", 1)
         assert result == b"\xF0"
 
     def test_xor_multi_byte(self):
-        adapter = XorAdapter(key=b"\xAA\x55")
+        adapter = XORAdapter(key=b"\xAA\x55")
         result = adapter.compute_key(b"\x55\xAA", 1)
         assert result == b"\xFF\xFF"
 
     def test_xor_key_longer_than_seed(self):
-        adapter = XorAdapter(key=b"\xAA\x55\xFF")
+        adapter = XORAdapter(key=b"\xAA\x55\xFF")
         result = adapter.compute_key(b"\x01\x02", 1)
         assert result == b"\xAB\x57"
 
     def test_xor_seed_longer_than_key(self):
-        adapter = XorAdapter(key=b"\xFF")
+        adapter = XORAdapter(key=b"\xFF")
         result = adapter.compute_key(b"\x01\x02\x03", 1)
         assert result == b"\xFE\xFD\xFC"
 
     def test_xor_with_zero_key(self):
-        adapter = XorAdapter(key=b"\x00\x00")
+        adapter = XORAdapter(key=b"\x00\x00")
         result = adapter.compute_key(b"\xAB\xCD", 1)
         assert result == b"\xAB\xCD"
 
     def test_xor_regardless_of_level(self):
-        adapter = XorAdapter(key=b"\xFF")
+        adapter = XORAdapter(key=b"\xFF")
         assert adapter.compute_key(b"\x01", 1) == adapter.compute_key(b"\x01", 3)
 
 
@@ -138,3 +139,33 @@ class TestSecurityAccessError:
     def test_can_be_caught_as_exception(self):
         with pytest.raises(Exception):
             raise SecurityAccessError("test")
+
+
+class TestCreateAdapter:
+    """Tests for create_adapter factory function."""
+
+    def test_create_fixed_adapter(self):
+        adapter = create_adapter("fixed", key=b"\xAA\xBB")
+        assert isinstance(adapter, FixedKeyAdapter)
+        assert adapter.compute_key(b"\x00", 1) == b"\xAA\xBB"
+
+    def test_create_xor_adapter(self):
+        adapter = create_adapter("xor", key=b"\xFF")
+        assert isinstance(adapter, XORAdapter)
+        assert adapter.compute_key(b"\x0F", 1) == b"\xF0"
+
+    def test_create_callable_adapter(self):
+        def fn(seed: bytes, level: int) -> bytes:
+            return bytes(reversed(seed))
+
+        adapter = create_adapter("callable", fn=fn)
+        assert isinstance(adapter, CallableAdapter)
+        assert adapter.compute_key(b"\x01\x02\x03", 1) == b"\x03\x02\x01"
+
+    def test_create_callable_adapter_missing_fn(self):
+        with pytest.raises(ValueError, match="fn parameter is required"):
+            create_adapter("callable")
+
+    def test_create_invalid_adapter_type(self):
+        with pytest.raises(ValueError, match="Invalid adapter_type"):
+            create_adapter("invalid")

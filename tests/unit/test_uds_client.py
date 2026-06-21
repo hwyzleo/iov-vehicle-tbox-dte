@@ -232,7 +232,7 @@ class TestUDSClientRoutineControl:
         mock_client_class.return_value = mock_client
 
         client = UDSClient(conn=MagicMock())
-        result = client.routine_control(0x01, 0xFF00)
+        result = client.routine_control(0xFF00, 0x01)
 
         assert result.positive is True
         assert result.service_id == 0x71
@@ -241,7 +241,7 @@ class TestUDSClientRoutineControl:
     def test_routine_control_not_connected(self):
         client = UDSClient()
         with pytest.raises(UDSError, match="Not connected"):
-            client.routine_control(0x01, 0xFF00)
+            client.routine_control(0xFF00, 0x01)
 
 
 class TestUDSClientReadDTC:

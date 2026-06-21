@@ -12,7 +12,7 @@ class SecurityAccessError(Exception):
     """Raised when security access operations fail."""
 
 
-class SecurityAdapter(ABC):
+class SecurityAccessAdapter(ABC):
     """Abstract base class for security access seed-to-key adapters.
 
     Subclasses must implement compute_key to convert a seed and
@@ -32,7 +32,7 @@ class SecurityAdapter(ABC):
         """
 
 
-class FixedKeyAdapter(SecurityAdapter):
+class FixedKeyAdapter(SecurityAccessAdapter):
     """Returns a fixed key regardless of seed.
 
     Useful for ECUs that use a static key for security access.
@@ -51,7 +51,7 @@ class FixedKeyAdapter(SecurityAdapter):
         return self._key
 
 
-class XorAdapter(SecurityAdapter):
+class XORAdapter(SecurityAccessAdapter):
     """Computes key by XOR-ing seed with a configured key.
 
     If key is shorter than seed, key bytes are repeated cyclically.
@@ -68,7 +68,7 @@ class XorAdapter(SecurityAdapter):
         return bytes(s ^ self._key[i % len(self._key)] for i, s in enumerate(seed))
 
 
-class CallableAdapter(SecurityAdapter):
+class CallableAdapter(SecurityAccessAdapter):
     """Delegates key computation to a user-provided callable.
 
     The callable receives (seed, level) and returns the key bytes.
@@ -85,3 +85,35 @@ class CallableAdapter(SecurityAdapter):
     def compute_key(self, seed: bytes, level: int) -> bytes:
         """Delegate to the wrapped callable."""
         return self._fn(seed, level)
+
+
+def create_adapter(
+    adapter_type: str = "fixed",
+    key: bytes = b"",
+    fn: Callable[[bytes, int], bytes] | None = None,
+) -> SecurityAccessAdapter:
+    """Factory function to create security access adapters.
+
+    Args:
+        adapter_type: Type of adapter to create ("fixed", "xor", or "callable").
+        key: Key bytes for fixed or XOR adapters.
+        fn: Callable for callable adapter.
+
+    Returns:
+        Configured SecurityAccessAdapter instance.
+
+    Raises:
+        ValueError: If invalid adapter_type or missing required parameters.
+    """
+    if adapter_type == "fixed":
+        return FixedKeyAdapter(key=key)
+    elif adapter_type == "xor":
+        return XORAdapter(key=key)
+    elif adapter_type == "callable":
+        if fn is None:
+            raise ValueError("fn parameter is required for callable adapter")
+        return CallableAdapter(fn=fn)
+    else:
+        raise ValueError(
+            f"Invalid adapter_type: {adapter_type}. Must be 'fixed', 'xor', or 'callable'"
+        )

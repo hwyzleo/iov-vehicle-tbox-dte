@@ -13,7 +13,7 @@ from udsoncan import ClientConfig
 from udsoncan.client import Client as UdsClient
 from udsoncan.connections import BaseConnection
 
-from dte.uds.security import SecurityAdapter
+from dte.uds.security import SecurityAccessAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ class UDSClient:
     def __init__(
         self,
         conn: Optional[Union[BaseConnection, Any]] = None,
-        security_adapter: Optional[SecurityAdapter] = None,
+        security_adapter: Optional[SecurityAccessAdapter] = None,
         config: Optional[ClientConfig] = None,
     ) -> None:
         """Initialize UDS client.
@@ -280,7 +280,7 @@ class UDSClient:
     def security_access(
         self,
         level: int,
-        seed_data: bytes = b"",
+        seed_to_key: bytes = b"",
     ) -> UDSResponse:
         """Perform security access (0x27).
 
@@ -289,7 +289,7 @@ class UDSClient:
 
         Args:
             level: Security access level (must be odd for seed request).
-            seed_data: Optional extra data for seed request.
+            seed_to_key: Optional extra data for seed request.
 
         Returns:
             UDSResponse with security access result.
@@ -302,7 +302,7 @@ class UDSClient:
 
         client = self._get_client()
 
-        seed_response = client.request_seed(level, data=seed_data)
+        seed_response = client.request_seed(level, data=seed_to_key)
         if seed_response is None or not seed_response.valid:
             return self._wrap_response(seed_response, 0x67)
 
@@ -315,16 +315,16 @@ class UDSClient:
 
     def routine_control(
         self,
-        control_type: int,
         routine_id: int,
+        control_type: int,
         data: Optional[bytes] = None,
     ) -> UDSResponse:
         """Execute routine control (0x31).
 
         Args:
+            routine_id: Routine identifier.
             control_type: Routine control sub-function
                          (0x01=Start, 0x02=Stop, 0x03=RequestResults).
-            routine_id: Routine identifier.
             data: Optional routine data.
 
         Returns:
