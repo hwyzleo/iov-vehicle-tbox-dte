@@ -3,8 +3,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dte.config.transport_profile import DoIPConfig
+from dte.config.transport_profile import DoIPConfig, TransportProfile, TransportType
 from dte.transport.doip import DoIPTransport
+from dte.transport.exceptions import ConnectionError, TimeoutError
 
 
 class TestDoIPTransportInit:
@@ -28,6 +29,31 @@ class TestDoIPTransportInit:
         assert transport.config.tcp_port == 13401
         assert transport.config.source_addr == 0x1234
         assert transport.config.target_addr == 0x5678
+
+    def test_profile_property_with_profile(self):
+        config = DoIPConfig()
+        profile = TransportProfile(name="test", transport_type=TransportType.DOIP)
+        transport = DoIPTransport(config, profile=profile)
+        assert transport.profile == profile
+
+    def test_profile_property_without_profile(self):
+        config = DoIPConfig()
+        transport = DoIPTransport(config)
+        with pytest.raises(AttributeError, match="No profile configured"):
+            _ = transport.profile
+
+    def test_is_connected_when_disconnected(self):
+        config = DoIPConfig()
+        transport = DoIPTransport(config)
+        assert transport.is_connected is False
+
+    @patch("dte.transport.doip.DoIPClient")
+    def test_is_connected_when_connected(self, mock_client_class):
+        mock_client_class.return_value = MagicMock()
+        config = DoIPConfig()
+        transport = DoIPTransport(config)
+        transport.connect()
+        assert transport.is_connected is True
 
 
 class TestDoIPTransportConnect:

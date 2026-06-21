@@ -5,9 +5,10 @@ from typing import Optional
 
 from doipclient import DoIPClient
 
-from dte.config.transport_profile import DoIPConfig
+from dte.config.transport_profile import DoIPConfig, TransportProfile
 
 from .base import BaseTransport
+from .exceptions import ConnectionError
 
 
 class DoIPTransport(BaseTransport):
@@ -17,14 +18,28 @@ class DoIPTransport(BaseTransport):
     ECU gateways.
     """
 
-    def __init__(self, config: DoIPConfig) -> None:
+    def __init__(self, config: DoIPConfig, profile: Optional[TransportProfile] = None) -> None:
         """Initialize DoIP transport.
 
         Args:
             config: DoIP configuration parameters.
+            profile: Optional transport profile for metadata.
         """
         self.config = config
+        self._profile = profile
         self._client: Optional[DoIPClient] = None
+
+    @property
+    def profile(self) -> TransportProfile:
+        """Return the transport profile configuration."""
+        if self._profile is None:
+            raise AttributeError("No profile configured for this transport")
+        return self._profile
+
+    @property
+    def is_connected(self) -> bool:
+        """Return whether the transport is currently connected."""
+        return self._client is not None
 
     def connect(self) -> None:
         """Establish DoIP connection to the target."""

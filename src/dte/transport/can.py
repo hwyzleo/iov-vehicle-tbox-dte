@@ -6,9 +6,10 @@ from typing import Optional
 import can
 import isotp
 
-from dte.config.transport_profile import CANConfig
+from dte.config.transport_profile import CANAddressing, CANConfig, TransportProfile
 
 from .base import BaseTransport
+from .exceptions import ConnectionError, TimeoutError
 
 
 class CANTransport(BaseTransport):
@@ -18,16 +19,30 @@ class CANTransport(BaseTransport):
     ISO-TP (ISO 15765-2) segmentation.
     """
 
-    def __init__(self, config: CANConfig) -> None:
+    def __init__(self, config: CANConfig, profile: Optional[TransportProfile] = None) -> None:
         """Initialize CAN transport.
 
         Args:
             config: CAN configuration parameters.
+            profile: Optional transport profile for metadata.
         """
         self.config = config
+        self._profile = profile
         self._bus: Optional[can.BusABC] = None
         self._notifier: Optional[can.Notifier] = None
         self._isotp_layer: Optional[isotp.NotifierBasedCanStack] = None
+
+    @property
+    def profile(self) -> TransportProfile:
+        """Return the transport profile configuration."""
+        if self._profile is None:
+            raise AttributeError("No profile configured for this transport")
+        return self._profile
+
+    @property
+    def is_connected(self) -> bool:
+        """Return whether the transport is currently connected."""
+        return self._isotp_layer is not None
 
     def connect(self) -> None:
         """Establish CAN connection and start ISO-TP layer."""
@@ -39,12 +54,21 @@ class CANTransport(BaseTransport):
 
         self._notifier = can.Notifier(self._bus, [])
 
-        isotp_params = {
+        isotp_params: dict = {
             "txid": self.config.req_id,
             "rxid": self.config.resp_id,
             "block_size": self.config.block_size,
             "st_min": self.config.st_min,
         }
+
+        if self.config.addressing == CANAddressing.EXTENDED:
+            isotp_params["txid"] = self.config.req_id
+            isotp_params["rxid"] = self.config.resp_id
+            isotp_params["addressing_mode"] = isotp.AddressingMode.Extended
+        elif self.config.addressing == CANAddressing.MIXED:
+            isotp_params["txid"] = self.config.req_id
+            isotp_params["rxid"] = self.config.resp_id
+            isotp_params["addressing_mode"] = isotp.AddressingMode.Mixed_29bits
 
         self._isotp_layer = isotp.NotifierBasedCanStack(
             bus=self._bus,

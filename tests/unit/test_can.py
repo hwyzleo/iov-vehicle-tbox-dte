@@ -3,8 +3,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dte.config.transport_profile import CANAddressing, CANConfig
+from dte.config.transport_profile import CANAddressing, CANConfig, TransportProfile, TransportType
 from dte.transport.can import CANTransport
+from dte.transport.exceptions import ConnectionError, TimeoutError
 
 
 class TestCANTransportInit:
@@ -39,6 +40,35 @@ class TestCANTransportInit:
         assert transport.config.func_id == 0x102
         assert transport.config.block_size == 8
         assert transport.config.st_min == 10
+
+    def test_profile_property_with_profile(self):
+        config = CANConfig()
+        profile = TransportProfile(name="test", transport_type=TransportType.CAN)
+        transport = CANTransport(config, profile=profile)
+        assert transport.profile == profile
+
+    def test_profile_property_without_profile(self):
+        config = CANConfig()
+        transport = CANTransport(config)
+        with pytest.raises(AttributeError, match="No profile configured"):
+            _ = transport.profile
+
+    def test_is_connected_when_disconnected(self):
+        config = CANConfig()
+        transport = CANTransport(config)
+        assert transport.is_connected is False
+
+    @patch("dte.transport.can.isotp")
+    @patch("dte.transport.can.can")
+    def test_is_connected_when_connected(self, mock_can, mock_isotp):
+        mock_can.Bus.return_value = MagicMock()
+        mock_can.Notifier.return_value = MagicMock()
+        mock_isotp.NotifierBasedCanStack.return_value = MagicMock()
+
+        config = CANConfig()
+        transport = CANTransport(config)
+        transport.connect()
+        assert transport.is_connected is True
 
 
 class TestCANTransportConnect:
@@ -116,6 +146,66 @@ class TestCANTransportConnect:
             rxid=0x101,
             block_size=8,
             st_min=10,
+        )
+
+    @patch("dte.transport.can.isotp")
+    @patch("dte.transport.can.can")
+    def test_connect_extended_addressing(self, mock_can, mock_isotp):
+        mock_bus = MagicMock()
+        mock_can.Bus.return_value = mock_bus
+
+        mock_notifier = MagicMock()
+        mock_can.Notifier.return_value = mock_notifier
+
+        mock_layer = MagicMock()
+        mock_isotp.NotifierBasedCanStack.return_value = mock_layer
+
+        config = CANConfig(
+            addressing=CANAddressing.EXTENDED,
+            req_id=0x100,
+            resp_id=0x101,
+        )
+        transport = CANTransport(config)
+        transport.connect()
+
+        mock_isotp.NotifierBasedCanStack.assert_called_once_with(
+            bus=mock_bus,
+            notifier=mock_notifier,
+            txid=0x100,
+            rxid=0x101,
+            block_size=0,
+            st_min=0,
+            addressing_mode=mock_isotp.AddressingMode.Extended,
+        )
+
+    @patch("dte.transport.can.isotp")
+    @patch("dte.transport.can.can")
+    def test_connect_mixed_addressing(self, mock_can, mock_isotp):
+        mock_bus = MagicMock()
+        mock_can.Bus.return_value = mock_bus
+
+        mock_notifier = MagicMock()
+        mock_can.Notifier.return_value = mock_notifier
+
+        mock_layer = MagicMock()
+        mock_isotp.NotifierBasedCanStack.return_value = mock_layer
+
+        config = CANConfig(
+            addressing=CANAddressing.MIXED,
+            req_id=0x100,
+            resp_id=0x101,
+        )
+        transport = CANTransport(config)
+        transport.connect()
+
+        mock_isotp.NotifierBasedCanStack.assert_called_once_with(
+            bus=mock_bus,
+            notifier=mock_notifier,
+            txid=0x100,
+            rxid=0x101,
+            block_size=0,
+            st_min=0,
+            addressing_mode=mock_isotp.AddressingMode.Mixed_29bits,
         )
 
     @patch("dte.transport.can.isotp")

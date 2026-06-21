@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
+if TYPE_CHECKING:
+    from dte.config.transport_profile import TransportProfile
 
 class BaseTransport(ABC):
     """Abstract base class for diagnostic transport implementations.
@@ -11,6 +13,16 @@ class BaseTransport(ABC):
     Provides a common interface for different transport mechanisms
     (DoIP, CAN/ISO-TP, etc.) used in UDS communication.
     """
+
+    @property
+    @abstractmethod
+    def profile(self) -> TransportProfile:
+        """Return the transport profile configuration."""
+
+    @property
+    @abstractmethod
+    def is_connected(self) -> bool:
+        """Return whether the transport is currently connected."""
 
     @abstractmethod
     def connect(self) -> None:
