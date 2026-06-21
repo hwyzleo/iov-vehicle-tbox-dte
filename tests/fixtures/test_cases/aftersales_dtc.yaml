@@ -1,0 +1,103 @@
+id: "AFTR-DTC-001"
+name: "Aftersales DTC Diagnostic Test"
+profile_ref: "can_standard"
+on_failure: continue
+steps:
+  - id: "AFTR-S01"
+    description: "Switch to default session"
+    request:
+      service: 0x10
+      sub_function: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x50
+
+  - id: "AFTR-S02"
+    description: "Read supported DTCs"
+    request:
+      service: 0x19
+      sub_function: 0x0A
+      data: ""
+    expect:
+      success: true
+      sid: 0x59
+
+  - id: "AFTR-S03"
+    description: "Read DTCs by status mask"
+    request:
+      service: 0x19
+      sub_function: 0x02
+      data: "ff"
+    expect:
+      success: true
+      sid: 0x59
+
+  - id: "AFTR-S04"
+    description: "Read DTC snapshot record"
+    request:
+      service: 0x19
+      sub_function: 0x03
+      data: "ff"
+    expect:
+      success: true
+      sid: 0x59
+
+  - id: "AFTR-S05"
+    description: "Switch to extended session"
+    request:
+      service: 0x10
+      sub_function: 0x03
+      data: ""
+    expect:
+      success: true
+      sid: 0x50
+
+  - id: "AFTR-S06"
+    description: "Security access level 1 - request seed"
+    request:
+      service: 0x27
+      sub_function: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x67
+
+  - id: "AFTR-S07"
+    description: "Security access level 1 - send key"
+    request:
+      service: 0x27
+      sub_function: 0x02
+      data: "aabbccdd"
+    expect:
+      success: true
+      sid: 0x67
+
+  - id: "AFTR-S08"
+    description: "Clear all DTCs"
+    request:
+      service: 0x14
+      data: "ffffff"
+    expect:
+      success: true
+      sid: 0x54
+
+  - id: "AFTR-S09"
+    description: "Verify DTCs cleared - read by status mask"
+    request:
+      service: 0x19
+      sub_function: 0x02
+      data: "ff"
+    expect:
+      success: true
+      sid: 0x59
+
+  - id: "AFTR-S10"
+    description: "Switch back to default session"
+    request:
+      service: 0x10
+      sub_function: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x50

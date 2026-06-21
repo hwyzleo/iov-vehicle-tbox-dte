@@ -1,0 +1,106 @@
+id: "EOL-PROV-001"
+name: "EOL Provisioning Test"
+profile_ref: "doip_direct"
+on_failure: abort
+steps:
+  - id: "EOL-P01"
+    description: "Switch to extended diagnostic session"
+    request:
+      service: 0x10
+      sub_function: 0x03
+      data: ""
+    expect:
+      success: true
+      sid: 0x50
+
+  - id: "EOL-P02"
+    description: "Security access level 1 - request seed"
+    request:
+      service: 0x27
+      sub_function: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x67
+
+  - id: "EOL-P03"
+    description: "Security access level 1 - send key"
+    request:
+      service: 0x27
+      sub_function: 0x02
+      data: "aabbccdd"
+    expect:
+      success: true
+      sid: 0x67
+
+  - id: "EOL-P04"
+    description: "Read VIN"
+    request:
+      service: 0x22
+      did: 0xF190
+      data: ""
+    expect:
+      success: true
+      sid: 0x62
+
+  - id: "EOL-P05"
+    description: "Write VIN"
+    request:
+      service: 0x2E
+      did: 0xF190
+      data: "56494e3132333435"
+    expect:
+      success: true
+      sid: 0x6E
+
+  - id: "EOL-P06"
+    description: "Write hardware version"
+    request:
+      service: 0x2E
+      did: 0xF191
+      data: "485756312e3030"
+    expect:
+      success: true
+      sid: 0x6E
+
+  - id: "EOL-P07"
+    description: "Write serial number"
+    request:
+      service: 0x2E
+      did: 0xF192
+      data: "534e3132333435"
+    expect:
+      success: true
+      sid: 0x6E
+
+  - id: "EOL-P08"
+    description: "Start EOL routine"
+    request:
+      service: 0x31
+      routine_id: 0xFF00
+      control_type: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x71
+
+  - id: "EOL-P09"
+    description: "Read EOL routine results"
+    request:
+      service: 0x31
+      routine_id: 0xFF00
+      control_type: 0x03
+      data: ""
+    expect:
+      success: true
+      sid: 0x71
+
+  - id: "EOL-P10"
+    description: "Switch back to default session"
+    request:
+      service: 0x10
+      sub_function: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x50
