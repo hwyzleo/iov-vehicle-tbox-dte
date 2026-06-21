@@ -175,7 +175,7 @@ class TestCANTransportConnect:
             rxid=0x101,
             block_size=0,
             st_min=0,
-            addressing_mode=mock_isotp.AddressingMode.Extended,
+            addressing_mode=mock_isotp.AddressingMode.Extended_11bits,
         )
 
     @patch("dte.transport.can.isotp")

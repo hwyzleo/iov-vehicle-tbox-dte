@@ -8,7 +8,7 @@ from doipclient import DoIPClient
 from dte.config.transport_profile import DoIPConfig, TransportProfile
 
 from .base import BaseTransport
-from .exceptions import ConnectionError
+from .exceptions import ConnectionError, TimeoutError
 
 
 class DoIPTransport(BaseTransport):
@@ -74,6 +74,17 @@ class DoIPTransport(BaseTransport):
         if self._client is None:
             raise ConnectionError("Not connected")
 
-        self._client.send_diagnostic(data, timeout=timeout)
-        response = self._client.receive_diagnostic(timeout=timeout)
+        try:
+            self._client.send_diagnostic(data, timeout=timeout)
+            response = self._client.receive_diagnostic(timeout=timeout)
+        except ConnectionError:
+            raise
+        except TimeoutError:
+            raise
+        except Exception as e:
+            raise ConnectionError(f"DoIP communication failed: {e}") from e
+
+        if response is None:
+            raise TimeoutError("No response received")
+
         return bytes(response)

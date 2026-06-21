@@ -64,7 +64,7 @@ class CANTransport(BaseTransport):
         if self.config.addressing == CANAddressing.EXTENDED:
             isotp_params["txid"] = self.config.req_id
             isotp_params["rxid"] = self.config.resp_id
-            isotp_params["addressing_mode"] = isotp.AddressingMode.Extended
+            isotp_params["addressing_mode"] = isotp.AddressingMode.Extended_11bits
         elif self.config.addressing == CANAddressing.MIXED:
             isotp_params["txid"] = self.config.req_id
             isotp_params["rxid"] = self.config.resp_id
