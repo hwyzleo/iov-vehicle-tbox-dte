@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from dte.config.transport_profile import TransportProfile, TransportType
 from dte.engine.executor import ScriptExecutor
 from dte.engine.scenario import ScenarioEngine
 from dte.model.test_case import TestCase
@@ -24,6 +25,11 @@ def _make_test_case() -> TestCase:
             ),
         ],
     )
+
+
+def _make_profile() -> TransportProfile:
+    """Create a minimal transport profile."""
+    return TransportProfile(name="test", transport_type=TransportType.DOIP)
 
 
 class TestScenarioEngineInit:
@@ -136,3 +142,66 @@ class TestScenarioEngineRun:
             engine.run(mock_transport, [_make_test_case()])
 
         mock_transport.disconnect.assert_called_once()
+
+
+class TestScenarioEngineExecuteTestCase:
+    """Tests for ScenarioEngine.execute_test_case."""
+
+    def test_execute_test_case_delegates_to_executor(self):
+        mock_executor = MagicMock(spec=ScriptExecutor)
+        mock_record = MagicMock()
+        mock_executor.execute_test_case.return_value = mock_record
+
+        engine = ScenarioEngine(executor=mock_executor)
+        profile = _make_profile()
+        case = _make_test_case()
+
+        result = engine.execute_test_case(case, profile)
+
+        assert result is mock_record
+        mock_executor.execute_test_case.assert_called_once_with(case, profile)
+
+
+class TestScenarioEngineExecuteTestSuite:
+    """Tests for ScenarioEngine.execute_test_suite."""
+
+    def test_execute_test_suite_all_pass(self):
+        mock_executor = MagicMock(spec=ScriptExecutor)
+        mock_record = MagicMock()
+        mock_record.passed = True
+        mock_record.step_results = [MagicMock(verdict="pass")]
+        mock_executor.execute_test_case.return_value = mock_record
+
+        engine = ScenarioEngine(executor=mock_executor)
+        profile = _make_profile()
+        cases = [_make_test_case(), _make_test_case()]
+
+        report = engine.execute_test_suite(cases, profile)
+
+        assert report.exit_code == 0
+        assert len(report.session_records) == 2
+        assert mock_executor.execute_test_case.call_count == 2
+
+    def test_execute_test_suite_with_failure(self):
+        mock_executor = MagicMock(spec=ScriptExecutor)
+        mock_record = MagicMock()
+        mock_record.passed = False
+        mock_record.step_results = [MagicMock(verdict="fail")]
+        mock_executor.execute_test_case.return_value = mock_record
+
+        engine = ScenarioEngine(executor=mock_executor)
+        profile = _make_profile()
+
+        report = engine.execute_test_suite([_make_test_case()], profile)
+
+        assert report.exit_code == 1
+
+    def test_execute_test_suite_empty(self):
+        mock_executor = MagicMock(spec=ScriptExecutor)
+        engine = ScenarioEngine(executor=mock_executor)
+        profile = _make_profile()
+
+        report = engine.execute_test_suite([], profile)
+
+        assert report.exit_code == 0
+        assert len(report.session_records) == 0

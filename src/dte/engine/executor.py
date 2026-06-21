@@ -4,11 +4,13 @@ from __future__ import annotations
 import logging
 import time
 
+from dte.config.transport_profile import TransportProfile
 from dte.engine.assertion import AssertionEngine
 from dte.model.session import SessionRecord, StepResult
 from dte.model.test_case import TestCase
 from dte.model.test_step import TestStep
-from dte.uds.client import UDSClient, UDSResponse
+from dte.transport.base import BaseTransport
+from dte.uds.client import TransportConnection, UDSClient, UDSResponse
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,18 @@ class ScriptExecutor:
 
     def __init__(self, assertion_engine: AssertionEngine | None = None) -> None:
         self._assertion_engine = assertion_engine or AssertionEngine()
+
+    def _create_client(self, transport: BaseTransport) -> UDSClient:
+        """Create a UDSClient connected via the given transport.
+
+        Args:
+            transport: Connected transport instance.
+
+        Returns:
+            Configured UDSClient.
+        """
+        conn = TransportConnection(transport)
+        return UDSClient(conn=conn)
 
     def _dispatch(self, client: UDSClient, step: TestStep) -> UDSResponse:
         """Dispatch a test step to the appropriate UDS client method.
@@ -71,7 +85,9 @@ class ScriptExecutor:
         start = time.monotonic()
         try:
             response = self._dispatch(client, step)
-            assertion = self._assertion_engine.validate(response, step.expect)
+            assertion = self._assertion_engine.assert_response(
+                response, step.expect, step.request.data
+            )
             duration_ms = (time.monotonic() - start) * 1000
             return StepResult(
                 step_id=step.id,
@@ -94,8 +110,45 @@ class ScriptExecutor:
                 error_message=str(exc),
             )
 
-    def run_test_case(self, client: UDSClient, case: TestCase) -> SessionRecord:
+    def execute_test_case(
+        self, test_case: TestCase, transport_profile: TransportProfile
+    ) -> SessionRecord:
         """Execute all steps in a test case.
+
+        Creates a transport from the profile, connects, runs all steps,
+        and disconnects.
+
+        Args:
+            test_case: Test case to execute.
+            transport_profile: Transport profile to use for creating connection.
+
+        Returns:
+            SessionRecord with step results.
+        """
+        from dte.transport.factory import create_transport
+
+        transport = create_transport(transport_profile)
+        transport.connect()
+        try:
+            client = self._create_client(transport)
+            record = SessionRecord(session_id=test_case.id)
+
+            for step in test_case.steps:
+                result = self.run_step(client, step)
+                record.add_step_result(result)
+
+                if result.verdict == "fail" and test_case.on_failure == "abort":
+                    record.finalize()
+                    record.state = "aborted"
+                    return record
+
+            record.finalize()
+            return record
+        finally:
+            transport.disconnect()
+
+    def run_test_case(self, client: UDSClient, case: TestCase) -> SessionRecord:
+        """Execute all steps in a test case with an existing client.
 
         Args:
             client: UDS client to use for requests.

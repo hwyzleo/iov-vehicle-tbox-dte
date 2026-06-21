@@ -23,12 +23,15 @@ class AssertionResult:
 class AssertionEngine:
     """Validates UDS responses against expected outcomes."""
 
-    def validate(self, response: UDSResponse, expect: StepExpect) -> AssertionResult:
-        """Validate a UDS response against expectations.
+    def assert_response(
+        self, response: UDSResponse, expect: StepExpect, request_data: bytes = b""
+    ) -> AssertionResult:
+        """Assert a UDS response matches expectations.
 
         Args:
             response: The UDS response to validate.
             expect: Expected outcome constraints.
+            request_data: Original request data for DID data match comparison.
 
         Returns:
             AssertionResult with verdict and optional error message.
@@ -49,6 +52,15 @@ class AssertionEngine:
             errors.append(
                 f"SID mismatch: expected 0x{expect.sid:02X}, got 0x{response.service_id:02X}"
             )
+
+        if expect.did_data_match is not None:
+            if expect.did_data_match and request_data and response.data != request_data:
+                errors.append(
+                    f"DID data mismatch: expected {request_data.hex()}, "
+                    f"got {response.data.hex()}"
+                )
+            if not expect.did_data_match and request_data and response.data == request_data:
+                errors.append("DID data should not match but does")
 
         if errors:
             return AssertionResult(verdict="fail", error_message="; ".join(errors))
