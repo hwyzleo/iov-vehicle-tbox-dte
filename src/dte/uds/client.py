@@ -263,18 +263,18 @@ class UDSClient:
         response = client.read_data_by_identifier(did)
         return self._wrap_response(response, 0x62)
 
-    def write_did(self, did: int, value: Union[bytes, Any]) -> UDSResponse:
+    def write_did(self, did: int, data: Union[bytes, Any]) -> UDSResponse:
         """Write data by identifier (0x2E).
 
         Args:
             did: Data identifier to write.
-            value: Value to write.
+            data: Data to write.
 
         Returns:
             UDSResponse with write result.
         """
         client = self._get_client()
-        response = client.write_data_by_identifier(did, value)
+        response = client.write_data_by_identifier(did, data)
         return self._wrap_response(response, 0x6E)
 
     def security_access(
@@ -341,25 +341,17 @@ class UDSClient:
             raise UDSError(f"Unsupported routine control type: {control_type}")
         return self._wrap_response(response, 0x71)
 
-    def read_dtc(self, sub_function: int, status_mask: int = 0xFF) -> UDSResponse:
-        """Read DTC information (0x19).
+    def read_dtc(self, status_mask: int) -> UDSResponse:
+        """Read DTC information by status mask (0x19 sub-function 0x02).
 
         Args:
-            sub_function: Read DTC sub-function (e.g., 0x02 for reportByStatusMask).
-            status_mask: DTC status mask (used by some sub-functions).
+            status_mask: DTC status mask.
 
         Returns:
             UDSResponse with DTC information.
         """
         client = self._get_client()
-        if sub_function == 0x02:
-            response = client.get_dtc_by_status_mask(status_mask)
-        elif sub_function == 0x01:
-            response = client.get_number_of_dtc_by_status_mask(status_mask)
-        elif sub_function == 0x0A:
-            response = client.get_supported_dtc()
-        else:
-            raise UDSError(f"Unsupported DTC sub-function: {sub_function}")
+        response = client.get_dtc_by_status_mask(status_mask)
         return self._wrap_response(response, 0x59)
 
     def clear_dtc(self, group: int = 0xFFFFFF) -> UDSResponse:
@@ -379,22 +371,20 @@ class UDSClient:
         self,
         did: int,
         control_type: int = 0x03,
-        values: Optional[Any] = None,
-        masks: Optional[Any] = None,
+        data: Optional[Any] = None,
     ) -> UDSResponse:
         """Input/Output control by identifier (0x2F).
 
         Args:
             did: Data identifier for I/O control.
             control_type: I/O control type (e.g., 0x03=shortTermAdjustment).
-            values: Optional control values.
-            masks: Optional control masks.
+            data: Optional control data.
 
         Returns:
             UDSResponse with I/O control result.
         """
         client = self._get_client()
-        response = client.io_control(did, control_param=control_type, values=values, masks=masks)
+        response = client.io_control(did, control_param=control_type, values=data)
         return self._wrap_response(response, 0x6F)
 
     def __enter__(self) -> UDSClient:

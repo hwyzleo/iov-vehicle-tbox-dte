@@ -257,7 +257,7 @@ class TestUDSClientReadDTC:
         mock_client_class.return_value = mock_client
 
         client = UDSClient(conn=MagicMock())
-        result = client.read_dtc(0x02)
+        result = client.read_dtc(0xFF)
 
         assert result.positive is True
         assert result.service_id == 0x59
@@ -266,7 +266,7 @@ class TestUDSClientReadDTC:
     def test_read_dtc_not_connected(self):
         client = UDSClient()
         with pytest.raises(UDSError, match="Not connected"):
-            client.read_dtc(0x02)
+            client.read_dtc(0xFF)
 
 
 class TestUDSClientClearDTC:
@@ -312,7 +312,7 @@ class TestUDSClientIOControl:
         assert result.positive is True
         assert result.service_id == 0x6F
         mock_client.io_control.assert_called_once_with(
-            0x0100, control_param=0x03, values=None, masks=None
+            0x0100, control_param=0x03, values=None
         )
 
     def test_io_control_not_connected(self):
