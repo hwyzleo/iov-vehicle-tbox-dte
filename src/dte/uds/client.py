@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Optional, Union
 
-from udsoncan import ClientConfig
+from udsoncan import ClientConfig, DidCodec
 from udsoncan.client import Client as UdsClient
 from udsoncan.connections import BaseConnection
 
@@ -130,6 +130,29 @@ class TransportConnection(BaseConnection):
         return response
 
 
+class _FlexibleDidCodec(DidCodec):
+    """DidCodec that accepts any remaining payload after DID echo."""
+
+    def decode(self, did_payload: bytes) -> bytes:
+        return did_payload
+
+    def encode(self, *did_value: Any) -> bytes:
+        return did_value[0] if did_value else b""
+
+    def __len__(self) -> int:
+        raise DidCodec.ReadAllRemainingData
+
+
+def _default_config() -> ClientConfig:
+    """Create default ClientConfig with common TBOX DID definitions."""
+    config = ClientConfig()
+    config["data_identifiers"] = {
+        0xF190: _FlexibleDidCodec(),   # VIN - variable length
+        0xF191: _FlexibleDidCodec(),   # Binding State - variable length
+    }
+    return config
+
+
 class UDSClient:
     """UDS client wrapper providing simplified diagnostic operations.
 
@@ -169,7 +192,7 @@ class UDSClient:
         """
         self._conn = conn
         self._security_adapter = security_adapter
-        self._config: ClientConfig = config or ClientConfig()
+        self._config: ClientConfig = config if config is not None else _default_config()
         self._client: Optional[UdsClient] = None
 
     def set_connection(self, conn: Union[BaseConnection, Any]) -> None:
@@ -311,8 +334,24 @@ class UDSClient:
         key_level = level + 1
         key = self._security_adapter.compute_key(seed, key_level)
 
-        key_response = client.send_key(key_level, key)
-        return self._wrap_response(key_response, 0x67)
+        # udsoncan's send_key rejects level > 0x7E, but SecurityAccess protocol
+        # requires bit 7=1 for send_key sub-function. Send raw UDS request instead.
+        send_key_sub = key_level | 0x80
+        raw_request = bytes([0x27, send_key_sub]) + key
+        self._conn.send(raw_request)
+        raw_response = self._conn.wait_frame(timeout=5.0)
+
+        if raw_response is None:
+            raise UDSError("No response for send_key")
+
+        key_response = UDSResponse(
+            service_id=raw_response[0] if raw_response else 0,
+            positive=raw_response[0] != 0x7F if raw_response else False,
+            data=raw_response[1:] if len(raw_response) > 1 else b"",
+            raw=raw_response,
+            nrc=raw_response[2] if len(raw_response) > 2 and raw_response[0] == 0x7F else None,
+        )
+        return key_response
 
     def routine_control(
         self,

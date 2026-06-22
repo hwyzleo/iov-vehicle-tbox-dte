@@ -205,9 +205,12 @@ def _interactive_loop(transport: Any) -> None:
         transport: Connected transport instance.
     """
     from dte.uds.client import TransportConnection, UDSClient
+    from dte.uds.security import CallableAdapter
 
     conn = TransportConnection(transport)
-    client = UDSClient(conn=conn)
+    # Default adapter: echo seed back as key (matches DIAG stub SEC behavior)
+    security_adapter = CallableAdapter(fn=lambda seed, level: seed)
+    client = UDSClient(conn=conn, security_adapter=security_adapter)
 
     while True:
         try:
@@ -296,11 +299,12 @@ def _dispatch_interactive(client: Any, cmd: str) -> None:
 
         elif command == "routine":
             if len(parts) < 3:
-                console.print("[red]Usage: routine <id> <type>[/]")
+                console.print("[red]Usage: routine <id> <type> [hex_data][/]")
                 return
             routine_id = int(parts[1], 16)
             control_type = int(parts[2], 0)
-            response = client.routine_control(routine_id, control_type)
+            data = bytes.fromhex(parts[3]) if len(parts) > 3 else None
+            response = client.routine_control(routine_id, control_type, data=data)
             console.print(f"Response: {response.raw.hex()}")
 
         elif command == "read_dtc":

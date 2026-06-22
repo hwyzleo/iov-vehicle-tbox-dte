@@ -15,12 +15,12 @@ profiles:
       tcp_port: 13400
       udp_port: 13400
       source_addr: 0x0E00
-      target_addr: 0x0010
+      target_addr: 0x0001
       activation_type: 0x00
       discovery: true
     timing:
       p2: 5.0
-      p2_star: 5000.0
+      p2_star: 5.0
 ```
 
 ### CAN Profile
@@ -41,7 +41,7 @@ profiles:
       st_min: 0
     timing:
       p2: 5.0
-      p2_star: 5000.0
+      p2_star: 5.0
 ```
 
 ### CAN Addressing Modes

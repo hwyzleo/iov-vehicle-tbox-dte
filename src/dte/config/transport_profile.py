@@ -29,7 +29,7 @@ class DoIPConfig:
     tcp_port: int = 13400
     udp_port: int = 13400
     source_addr: int = 0x0E00
-    target_addr: int = 0x0010
+    target_addr: int = 0x0001
     activation_type: int = 0x00
     discovery: bool = True
 
@@ -54,7 +54,7 @@ class TimingConfig:
     """Diagnostic timing parameters (in seconds)."""
 
     p2: float = 5.0
-    p2_star: float = 5000.0
+    p2_star: float = 5.0
     n_as: float = 1.0
     n_ar: float = 1.0
     n_bs: float = 1.0

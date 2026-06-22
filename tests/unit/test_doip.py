@@ -70,7 +70,7 @@ class TestDoIPTransportConnect:
 
         mock_client_class.assert_called_once_with(
             "192.168.1.100",
-            0x0010,
+            0x0001,
             tcp_port=13400,
             activation_type=0x00,
             client_logical_address=0x0E00,

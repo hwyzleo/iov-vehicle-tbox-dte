@@ -191,21 +191,19 @@ class TestUDSClientSecurityAccess:
             valid=True, service_data=seed_data, payload=b"\x67\x01\x12\x34"
         )
 
-        key_response = _make_mock_udsoncan_response(
-            valid=True, payload=b"\x67\x02"
-        )
-
         mock_client.request_seed.return_value = seed_response
-        mock_client.send_key.return_value = key_response
         mock_client_class.return_value = mock_client
 
+        mock_conn = MagicMock()
+        mock_conn.wait_frame.return_value = b"\x67\x82"
+
         adapter = FixedKeyAdapter(key=b"\x00\x00")
-        client = UDSClient(conn=MagicMock(), security_adapter=adapter)
+        client = UDSClient(conn=mock_conn, security_adapter=adapter)
         result = client.security_access(0x01)
 
         assert result.positive is True
         mock_client.request_seed.assert_called_once_with(0x01, data=b"")
-        mock_client.send_key.assert_called_once_with(0x02, b"\x00\x00")
+        mock_conn.send.assert_called_once_with(b"\x27\x82\x00\x00")
 
     def test_security_access_no_adapter(self):
         client = UDSClient(conn=MagicMock())
