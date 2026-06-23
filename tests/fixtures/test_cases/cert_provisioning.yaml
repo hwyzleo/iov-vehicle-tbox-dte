@@ -1,0 +1,77 @@
+id: "CERT-PROV-001"
+name: "Certificate Provisioning Test"
+profile_ref: "doip_direct"
+on_failure: abort
+steps:
+  - id: "CERT-P01"
+    description: "Switch to programming diagnostic session"
+    request:
+      service: 0x10
+      sub_function: 0x02
+      data: ""
+    expect:
+      success: true
+      sid: 0x50
+
+  - id: "CERT-P02"
+    description: "Security access level 1 - request seed"
+    request:
+      service: 0x27
+      sub_function: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x67
+
+  - id: "CERT-P03"
+    description: "Security access level 1 - send key"
+    request:
+      service: 0x27
+      sub_function: 0x02
+      data: ""
+    expect:
+      success: true
+      sid: 0x67
+
+  - id: "CERT-P04"
+    description: "Generate key pair"
+    request:
+      service: 0x31
+      routine_id: 0xFF01
+      control_type: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x71
+
+  - id: "CERT-P05"
+    description: "Read CSR"
+    request:
+      service: 0x31
+      routine_id: 0xFF02
+      control_type: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x71
+
+  - id: "CERT-P06"
+    description: "Inject certificate"
+    request:
+      service: 0x31
+      routine_id: 0xFF03
+      control_type: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x71
+
+  - id: "CERT-P07"
+    description: "Switch back to default session"
+    request:
+      service: 0x10
+      sub_function: 0x01
+      data: ""
+    expect:
+      success: true
+      sid: 0x50

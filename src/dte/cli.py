@@ -204,37 +204,77 @@ def _interactive_loop(transport: Any) -> None:
     Args:
         transport: Connected transport instance.
     """
+    import threading
+
     from dte.uds.client import TransportConnection, UDSClient
-    from dte.uds.security import CallableAdapter
+    from dte.uds.security import XORAdapter
 
     conn = TransportConnection(transport)
-    # Default adapter: echo seed back as key (matches DIAG stub SEC behavior)
-    security_adapter = CallableAdapter(fn=lambda seed, level: seed)
+    # XOR seed with shared secret (matches DIAG SEC behavior: expected = seed XOR 0x01)
+    security_adapter = XORAdapter(key=b"\x01" * 16)
     client = UDSClient(conn=conn, security_adapter=security_adapter)
 
-    while True:
-        try:
-            cmd = console.input("[bold cyan]dte>[/] ").strip()
-        except (EOFError, KeyboardInterrupt):
-            console.print("\n[yellow]Exiting...[/]")
-            break
+    # S3 keep-alive: only active in non-default sessions
+    current_session = 0x01
+    keepalive_stop = threading.Event()
+    keepalive_thread: threading.Thread | None = None
 
-        if not cmd:
-            continue
+    def _keepalive() -> None:
+        while not keepalive_stop.wait(3.0):
+            try:
+                client.tester_present()
+            except Exception:
+                pass
 
-        if cmd in ("quit", "exit", "q"):
-            break
+    def _start_keepalive() -> None:
+        nonlocal keepalive_thread
+        if keepalive_thread is None or not keepalive_thread.is_alive():
+            keepalive_stop.clear()
+            keepalive_thread = threading.Thread(target=_keepalive, daemon=True)
+            keepalive_thread.start()
 
-        if cmd == "help":
-            _print_help()
-            continue
+    def _stop_keepalive() -> None:
+        keepalive_stop.set()
 
-        if cmd == "status":
-            console.print(f"Connected: {transport.is_connected}")
-            console.print(f"Transport: {transport.profile.transport_type.value}")
-            continue
+    try:
+        while True:
+            try:
+                cmd = console.input("[bold cyan]dte>[/] ").strip()
+            except (EOFError, KeyboardInterrupt):
+                console.print("\n[yellow]Exiting...[/]")
+                break
 
-        _dispatch_interactive(client, cmd)
+            if not cmd:
+                continue
+
+            if cmd in ("quit", "exit", "q"):
+                break
+
+            if cmd == "help":
+                _print_help()
+                continue
+
+            if cmd == "status":
+                console.print(f"Connected: {transport.is_connected}")
+                console.print(f"Transport: {transport.profile.transport_type.value}")
+                continue
+
+            _dispatch_interactive(client, cmd)
+
+            # Track session state for S3 keep-alive
+            parts = cmd.split()
+            if parts and parts[0].lower() == "session" and len(parts) >= 2:
+                try:
+                    new_session = int(parts[1], 0)
+                    if new_session != 0x01:
+                        _start_keepalive()
+                    else:
+                        _stop_keepalive()
+                    current_session = new_session
+                except ValueError:
+                    pass
+    finally:
+        keepalive_stop.set()
 
 
 def _print_help() -> None:
@@ -246,10 +286,12 @@ def _print_help() -> None:
   read_did <hex>    Read DID (e.g., read_did F190)
   write_did <hex> <hex_data>  Write DID
   security <level>  Security access
-  routine <id> <type>  Routine control
+  routine <id> <type> [hex_data]  Routine control
+  tester_present    Send TesterPresent (0x3E) to keep session alive
   read_dtc <mask>   Read DTCs
   clear_dtc         Clear all DTCs
-  quit/exit/q       Exit interactive mode"""
+  quit/exit/q       Exit interactive mode
+Note: S3 keep-alive runs automatically every 3 seconds."""
     console.print(help_text)
 
 
@@ -314,6 +356,10 @@ def _dispatch_interactive(client: Any, cmd: str) -> None:
 
         elif command == "clear_dtc":
             response = client.clear_dtc()
+            console.print(f"Response: {response.raw.hex()}")
+
+        elif command == "tester_present":
+            response = client.tester_present()
             console.print(f"Response: {response.raw.hex()}")
 
         else:

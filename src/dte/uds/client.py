@@ -6,6 +6,7 @@ TBOX diagnostic operations.
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Any, Optional, Union
 
@@ -53,6 +54,7 @@ class TransportConnection(BaseConnection):
         self._transport = transport
         self._open = False
         self._pending_request: Optional[bytes] = None
+        self._send_lock = threading.Lock()
 
     def open(self) -> BaseConnection:
         """Open the underlying transport connection."""
@@ -115,6 +117,7 @@ class TransportConnection(BaseConnection):
         """Send the pending request and wait for response.
 
         Combines send + wait into a single send_recv call.
+        Uses a lock to prevent concurrent requests from mixing responses.
 
         Args:
             timeout: Maximum time to wait in seconds.
@@ -125,7 +128,8 @@ class TransportConnection(BaseConnection):
         """
         if self._pending_request is None:
             return None
-        response = self._transport.send_recv(self._pending_request, timeout=timeout or 5.0)
+        with self._send_lock:
+            response = self._transport.send_recv(self._pending_request, timeout=timeout or 5.0)
         self._pending_request = None
         return response
 
@@ -273,6 +277,16 @@ class UDSClient:
         client = self._get_client()
         response = client.change_session(session_type)
         return self._wrap_response(response, 0x50)
+
+    def tester_present(self) -> UDSResponse:
+        """Send TesterPresent (0x3E) to keep session alive.
+
+        Returns:
+            UDSResponse with tester present result.
+        """
+        client = self._get_client()
+        response = client.tester_present()
+        return self._wrap_response(response, 0x7E)
 
     def read_did(self, did: int) -> UDSResponse:
         """Read data by identifier (0x22).
