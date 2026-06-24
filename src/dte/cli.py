@@ -286,7 +286,7 @@ def _print_help() -> None:
   read_did <hex>    Read DID (e.g., read_did F190)
   write_did <hex> <hex_data>  Write DID
   security <level>  Security access
-  routine <id> <type> [hex_data]  Routine control
+  routine <id> <type> [hex_data|file.der]  Routine control (hex or DER file)
   tester_present    Send TesterPresent (0x3E) to keep session alive
   read_dtc <mask>   Read DTCs
   clear_dtc         Clear all DTCs
@@ -341,11 +341,19 @@ def _dispatch_interactive(client: Any, cmd: str) -> None:
 
         elif command == "routine":
             if len(parts) < 3:
-                console.print("[red]Usage: routine <id> <type> [hex_data][/]")
+                console.print("[red]Usage: routine <id> <type> [hex_data | file.der][/]")
                 return
             routine_id = int(parts[1], 16)
             control_type = int(parts[2], 0)
-            data = bytes.fromhex(parts[3]) if len(parts) > 3 else None
+            data = None
+            if len(parts) > 3:
+                arg = parts[3]
+                file_path = Path(arg)
+                if file_path.is_file():
+                    data = file_path.read_bytes()
+                    console.print(f"Loaded {len(data)} bytes from {arg}")
+                else:
+                    data = bytes.fromhex(arg)
             response = client.routine_control(routine_id, control_type, data=data)
             console.print(f"Response: {response.raw.hex()}")
 

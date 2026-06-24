@@ -131,7 +131,7 @@ routine FF01 1
 routine FF02 1
 
 # 5. 注入证书（将从 PKI 获取的证书以 DER 编码传入）
-routine FF03 1 <CERT_DER_HEX>
+routine FF03 1 device.der
 ```
 
 > 证书流程分三步独立调用，由测试端控制顺序：
