@@ -7,6 +7,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Callable
 
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
 
 class SecurityAccessError(Exception):
     """Raised when security access operations fail."""
@@ -68,6 +70,48 @@ class XORAdapter(SecurityAccessAdapter):
         return bytes(s ^ self._key[i % len(self._key)] for i, s in enumerate(seed))
 
 
+class AES128ECBAdapter(SecurityAccessAdapter):
+    """Computes key as AES-128-ECB(shared_secret, seed).
+
+    Matches the TBOX SEC service seed-to-key algorithm
+    (``SecService::compute_expected_key``, TBOX-SEC-DSN-CR-003 §5)::
+
+        key = AES-128-ECB-Encrypt(key=shared_secret, plaintext=seed)
+
+    Both seed and key are a single 16-byte block, no padding. The shared
+    secret is provisioned on the device as ``sec.seed_key.shared_secret``
+    (32 hex characters).
+    """
+
+    BLOCK_SIZE = 16
+
+    def __init__(self, shared_secret: bytes) -> None:
+        if len(shared_secret) != self.BLOCK_SIZE:
+            raise SecurityAccessError(
+                f"shared_secret must be {self.BLOCK_SIZE} bytes "
+                f"(32 hex chars), got {len(shared_secret)}"
+            )
+        self._secret = shared_secret
+
+    @classmethod
+    def from_hex(cls, secret_hex: str) -> AES128ECBAdapter:
+        """Build an adapter from a 32-character hex string."""
+        try:
+            secret = bytes.fromhex(secret_hex.strip())
+        except ValueError as e:
+            raise SecurityAccessError(f"shared_secret is not valid hex: {e}") from e
+        return cls(secret)
+
+    def compute_key(self, seed: bytes, level: int) -> bytes:
+        """Encrypt the seed with AES-128-ECB under the shared secret."""
+        if len(seed) != self.BLOCK_SIZE:
+            raise SecurityAccessError(
+                f"seed must be {self.BLOCK_SIZE} bytes, got {len(seed)}"
+            )
+        encryptor = Cipher(algorithms.AES(self._secret), modes.ECB()).encryptor()
+        return encryptor.update(seed) + encryptor.finalize()
+
+
 class CallableAdapter(SecurityAccessAdapter):
     """Delegates key computation to a user-provided callable.
 
@@ -95,8 +139,8 @@ def create_adapter(
     """Factory function to create security access adapters.
 
     Args:
-        adapter_type: Type of adapter to create ("fixed", "xor", or "callable").
-        key: Key bytes for fixed or XOR adapters.
+        adapter_type: Type of adapter ("fixed", "xor", "aes128ecb", or "callable").
+        key: Key bytes. For "aes128ecb" this is the 16-byte shared secret.
         fn: Callable for callable adapter.
 
     Returns:
@@ -109,11 +153,14 @@ def create_adapter(
         return FixedKeyAdapter(key=key)
     elif adapter_type == "xor":
         return XORAdapter(key=key)
+    elif adapter_type == "aes128ecb":
+        return AES128ECBAdapter(shared_secret=key)
     elif adapter_type == "callable":
         if fn is None:
             raise ValueError("fn parameter is required for callable adapter")
         return CallableAdapter(fn=fn)
     else:
         raise ValueError(
-            f"Invalid adapter_type: {adapter_type}. Must be 'fixed', 'xor', or 'callable'"
+            f"Invalid adapter_type: {adapter_type}. "
+            "Must be 'fixed', 'xor', 'aes128ecb', or 'callable'"
         )

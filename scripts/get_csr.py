@@ -3,18 +3,25 @@
 
 Flow (per docs/build-and-verify.md 证书申请流程):
   0x10 0x02  switch to programming session
-  0x27       security access (level 0x27)
+  0x27 0x01/0x02  security access level 1 (DIAG 的证书 RID 校验 is_unlocked(0x01))
   0x31 0x01 0xFF01  generate key pair (skippable with --no-keygen)
   0x31 0x01 0xFF02  read CSR  -> response 0x71 0x01 0xFF02 [CSR DER]
   0x10 0x01  back to default session
 
+Seed-Key: key = AES-128-ECB(shared_secret, seed)，与 SEC 的
+SecService::compute_expected_key 一致。共享密钥需与设备上 provisioning 注入的
+sec.seed_key.shared_secret 相同（32 个 hex 字符），通过 --shared-secret 或环境变量
+TBOX_SEED_KEY_SECRET 提供。
+
 Usage:
+    export TBOX_SEED_KEY_SECRET=<32 hex chars>
     python scripts/get_csr.py --profile doip_orin.yaml --profile-name doip_orin
 """
 from __future__ import annotations
 
 import argparse
 import base64
+import os
 import sys
 import textwrap
 from pathlib import Path
@@ -24,10 +31,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from dte.config.loader import load_config  # noqa: E402
 from dte.transport.factory import create_transport  # noqa: E402
 from dte.uds.client import TransportConnection, UDSClient  # noqa: E402
-from dte.uds.security import XORAdapter  # noqa: E402
+from dte.uds.security import AES128ECBAdapter  # noqa: E402
 
 RID_GENERATE_KEY_PAIR = 0xFF01
 RID_READ_CSR = 0xFF02
+
+# DIAG 对证书类 RID 统一检查 level-1 解锁状态键 0x01
+# （constants.h: UdsSecurityLevel::LEVEL_1 = 0x01）。
+# requestSeed 用 0x01，sendKey 用 0x02。
+SECURITY_LEVEL = 0x01
 
 # Routine positive response header: SID(0x71) + controlType + RID(2 bytes)
 ROUTINE_RESP_HEADER_LEN = 4
@@ -56,7 +68,21 @@ def main() -> int:
         "--no-keygen", action="store_true",
         help="Skip 0xFF01 (reuse the existing key pair on the device)",
     )
+    parser.add_argument(
+        "--shared-secret", default=None,
+        help="Seed-Key AES-128 shared secret, 32 hex chars "
+             "(defaults to $TBOX_SEED_KEY_SECRET)",
+    )
     args = parser.parse_args()
+
+    secret_hex = args.shared_secret or os.environ.get("TBOX_SEED_KEY_SECRET")
+    if not secret_hex:
+        raise SystemExit(
+            "[FAIL] Seed-Key 共享密钥未提供。请设置 --shared-secret 或环境变量 "
+            "TBOX_SEED_KEY_SECRET（32 hex 字符），且必须与设备上 "
+            "sec.seed_key.shared_secret 一致。"
+        )
+    security_adapter = AES128ECBAdapter.from_hex(secret_hex)
 
     profiles = load_config(Path(args.profile))
     if not profiles:
@@ -77,12 +103,14 @@ def main() -> int:
     print("Connected.")
 
     conn = TransportConnection(transport)
-    # Matches DIAG SEC stub behaviour: expected key = seed XOR 0x01
-    client = UDSClient(conn=conn, security_adapter=XORAdapter(key=b"\x01" * 16))
+    client = UDSClient(conn=conn, security_adapter=security_adapter)
 
     try:
         _check("session 2 (programming)", client.session_control(0x02))
-        _check("security 0x27", client.security_access(0x27))
+        _check(
+            f"security level 0x{SECURITY_LEVEL:02X}",
+            client.security_access(SECURITY_LEVEL),
+        )
 
         if not args.no_keygen:
             _check(

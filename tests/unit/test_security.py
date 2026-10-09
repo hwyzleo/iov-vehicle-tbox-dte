@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 
 from dte.uds.security import (
+    AES128ECBAdapter,
     CallableAdapter,
     FixedKeyAdapter,
     SecurityAccessAdapter,
@@ -92,7 +93,49 @@ class TestXORAdapter:
         assert adapter.compute_key(b"\x01", 1) == adapter.compute_key(b"\x01", 3)
 
 
+class TestAES128ECBAdapter:
+    """Tests for AES128ECBAdapter (TBOX SEC seed-to-key algorithm)."""
+
+    # 独立参考向量，由 OpenSSL 生成：
+    #   openssl enc -aes-128-ecb -K 000102030405060708090a0b0c0d0e0f -nopad
+    # 与 SecService::compute_expected_key (EVP_aes_128_ecb, padding=0) 等价。
+    SECRET = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
+    SEED = bytes.fromhex("101112131415161718191a1b1c1d1e1f")
+    EXPECTED_KEY = bytes.fromhex("07feef74e1d5036e900eee118e949293")
+
+    def test_matches_openssl_reference_vector(self):
+        adapter = AES128ECBAdapter(shared_secret=self.SECRET)
+        assert adapter.compute_key(self.SEED, 0x02) == self.EXPECTED_KEY
+
+    def test_from_hex(self):
+        adapter = AES128ECBAdapter.from_hex("000102030405060708090A0B0C0D0E0F")
+        assert adapter.compute_key(self.SEED, 0x02) == self.EXPECTED_KEY
+
+    def test_key_is_independent_of_level(self):
+        adapter = AES128ECBAdapter(shared_secret=self.SECRET)
+        assert adapter.compute_key(self.SEED, 0x02) == adapter.compute_key(self.SEED, 0x28)
+
+    def test_rejects_wrong_secret_length(self):
+        with pytest.raises(SecurityAccessError):
+            AES128ECBAdapter(shared_secret=b"\x00" * 15)
+
+    def test_rejects_non_hex_secret(self):
+        with pytest.raises(SecurityAccessError):
+            AES128ECBAdapter.from_hex("not-hex-at-all-xxxxxxxxxxxxxxxxx")
+
+    def test_rejects_wrong_seed_length(self):
+        adapter = AES128ECBAdapter(shared_secret=self.SECRET)
+        with pytest.raises(SecurityAccessError):
+            adapter.compute_key(b"\x00" * 8, 0x02)
+
+    def test_factory_creates_aes_adapter(self):
+        adapter = create_adapter("aes128ecb", key=self.SECRET)
+        assert isinstance(adapter, AES128ECBAdapter)
+        assert adapter.compute_key(self.SEED, 0x02) == self.EXPECTED_KEY
+
+
 class TestCallableAdapter:
+
     """Tests for CallableAdapter."""
 
     def test_callable_adapter_with_function(self):

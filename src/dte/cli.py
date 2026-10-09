@@ -204,14 +204,27 @@ def _interactive_loop(transport: Any) -> None:
     Args:
         transport: Connected transport instance.
     """
+    import os
     import threading
 
     from dte.uds.client import TransportConnection, UDSClient
-    from dte.uds.security import XORAdapter
+    from dte.uds.security import AES128ECBAdapter, XORAdapter
 
     conn = TransportConnection(transport)
-    # XOR seed with shared secret (matches DIAG SEC behavior: expected = seed XOR 0x01)
-    security_adapter = XORAdapter(key=b"\x01" * 16)
+    # Seed-Key: key = AES-128-ECB(shared_secret, seed), 与 SEC 的
+    # SecService::compute_expected_key 一致。共享密钥由 TBOX_SEED_KEY_SECRET
+    # 提供（32 hex 字符，须与设备 sec.seed_key.shared_secret 相同）。
+    secret_hex = os.environ.get("TBOX_SEED_KEY_SECRET")
+    security_adapter: XORAdapter | AES128ECBAdapter
+    if secret_hex:
+        security_adapter = AES128ECBAdapter.from_hex(secret_hex)
+        console.print("Seed-Key adapter: [green]AES-128-ECB[/] (TBOX_SEED_KEY_SECRET)")
+    else:
+        security_adapter = XORAdapter(key=b"\x01" * 16)
+        console.print(
+            "[yellow]Seed-Key adapter: XOR fallback[/] -- 0x27 会被设备拒绝 (NRC 0x35)。"
+            "设置 TBOX_SEED_KEY_SECRET=<32 hex> 以启用 AES-128-ECB。"
+        )
     client = UDSClient(conn=conn, security_adapter=security_adapter)
 
     # S3 keep-alive: only active in non-default sessions
